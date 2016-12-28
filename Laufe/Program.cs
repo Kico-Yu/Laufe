@@ -32,8 +32,9 @@ namespace Laufe
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Laufe laufe = new Laufe();
-            RegisterHotKey(laufe.Handle, 8, 8, Keys.Oemtilde);
-            laufe.isLoad = false;
+            RegisterHotKey(laufe.Handle, 128, 8, Keys.Oemtilde);
+            laufe.Opacity = 0;
+            laufe.Show();
             Application.Run();
         }
     }

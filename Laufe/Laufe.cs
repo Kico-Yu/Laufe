@@ -23,7 +23,7 @@ namespace Laufe
 
         delegate void SaveSetting(string path);
         bool isLock = false;
-        internal bool isLoad = true;
+        bool isLoad = true;
         int Index;
         XmlDocument xdSetting = new XmlDocument();
         XmlNode xnRoot;
@@ -33,6 +33,8 @@ namespace Laufe
         struct ExeFile
         {
             internal string Path;
+            internal string Arguments;
+            internal string WorkingDirectory;
             internal Bitmap Icon;
         }
 
@@ -50,14 +52,14 @@ namespace Laufe
                 for (int i = 0; i < 10; i++)
                 {
                     XmlElement xePanel = xdSetting.CreateElement("Panel");
-                    xePanel.SetAttribute("index", i.ToString());
+                    xePanel.SetAttribute("Index", i.ToString());
                     if (i == 0)
                     {
-                        xePanel.SetAttribute("current", "true");
+                        xePanel.SetAttribute("Current", "true");
                     }
                     else
                     {
-                        xePanel.SetAttribute("current", "false");
+                        xePanel.SetAttribute("Current", "false");
                     }
                     xnRoot.AppendChild(xePanel);
                 }
@@ -65,7 +67,6 @@ namespace Laufe
                 xdSetting.AppendChild(xnRoot);
                 xdSetting.Save("configure.xml");
             }
-
 
             #region 事件注册
 
@@ -312,23 +313,24 @@ namespace Laufe
         {
             try
             {
-                if (!isLoad)
-                    if (message.WParam.ToInt32() == 8)
+                if (message.WParam.ToInt32() == 128)
+                {
+                    if (this.Visible == false)
                     {
-                        if (this.Visible == false)
-                        {
-                            this.Location = new Point(((Screen.PrimaryScreen.Bounds.Width - this.Width) / 2), ((Screen.PrimaryScreen.Bounds.Height - this.Height) / 2));
-                            AnimateWindow(this.Handle, 8, 0x00000010 + 0x00080000 + 0x00020000);
-                            SetForegroundWindow(this.Handle);
-                            this.Visible = true;
-                        }
-                        else
-                        {
-                            isLock = false;
-                            this.BackColor = Color.FromArgb(129, 199, 212);
-                            this.Visible = false;
-                        }
+                        this.Location = new Point(((Screen.FromPoint(Cursor.Position).Bounds.Width - this.Width) / 2), ((Screen.FromPoint(Cursor.Position).Bounds.Height - this.Height) / 2));
+                        AnimateWindow(this.Handle, 8, 0x00000010 + 0x00080000 + 0x00020000);
+                        SetForegroundWindow(this.Handle);
+                        this.Opacity = 1;
+                        this.Visible = true;
                     }
+                    else
+                    {
+                        isLock = false;
+                        this.BackColor = Color.FromArgb(129, 199, 212);
+                        this.Visible = false;
+                    }
+                }
+
                 base.WndProc(ref message);
             }
             catch
@@ -357,8 +359,8 @@ namespace Laufe
         {
             try
             {
-                pic.Tag = exeFile.Path;
-                pic.BackgroundImage = exeFile.Icon;
+                pic.Tag = exeFile;
+                pic.BackgroundImage = ((ExeFile)pic.Tag).Icon;
                 pic.MouseClick += pictureBox_MouseClick;
                 pic.MouseDown += pictureBox_MouseDown;
                 return true;
@@ -472,12 +474,12 @@ namespace Laufe
             {
                 if (i == Index)
                 {
-                    ((XmlElement)xnRoot.ChildNodes[i]).SetAttribute("current", "false");
+                    ((XmlElement)xnRoot.ChildNodes[i]).SetAttribute("Current", "false");
                 }
                 if (i == index)
                 {
                     xeCurrent = (XmlElement)xnRoot.ChildNodes[i];
-                    xeCurrent.SetAttribute("current", "true");
+                    xeCurrent.SetAttribute("Current", "true");
 
                     RemoveKey(picQ);
                     RemoveKey(picW);
@@ -518,8 +520,11 @@ namespace Laufe
                         {
                             exeFile = new ExeFile()
                             {
-                                Path = xe.GetAttribute("path"),
-                                Icon = new Bitmap(new MemoryStream(HexStringToByteArray(xe.GetAttribute("icon"))))
+
+                                Path = xe.GetAttribute("Path"),
+                                Arguments = xe.GetAttribute("Arguments"),
+                                WorkingDirectory = xe.GetAttribute("WorkingDirectory"),
+                                Icon = new Bitmap(new MemoryStream(HexStringToByteArray(xe.GetAttribute("Icon"))))
                             };
                         }
                         catch
@@ -528,7 +533,7 @@ namespace Laufe
                         }
 
 
-                        switch (xe.GetAttribute("name"))
+                        switch (xe.GetAttribute("Name"))
                         {
                             case "Q":
                                 AddKey(picQ, exeFile);
@@ -1073,14 +1078,43 @@ namespace Laufe
         {
             if (pic.Tag != null)
             {
-                string path = pic.Tag.ToString();
+                string path = ((ExeFile)pic.Tag).Path;
+                string arguments = ((ExeFile)pic.Tag).Arguments;
+                string workingDirectory = ((ExeFile)pic.Tag).WorkingDirectory;
+
+                if(!File.Exists(path))
+                {
+                    RemoveKey(pic);
+
+                    foreach (XmlElement xe in xeCurrent.ChildNodes)
+                    {
+                        if (xe.GetAttribute("Name") == pic.Name.Substring(3))
+                        {
+                            xeCurrent.RemoveChild(xe);
+                        }
+                    }
+
+                    BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+
+                    return;
+                }
 
                 try
                 {
                     SetForegroundWindow(this.Handle);
                     System.Diagnostics.Process process = new System.Diagnostics.Process();
                     process.StartInfo.FileName = path;
-                    process.StartInfo.WorkingDirectory = path.Substring(0, path.LastIndexOf('\\'));
+                    process.StartInfo.Arguments = arguments;
+
+                    if (workingDirectory == "")
+                    {
+                        process.StartInfo.WorkingDirectory = path.Substring(0, path.LastIndexOf('\\'));
+                    }
+                    else
+                    {
+                        process.StartInfo.WorkingDirectory = workingDirectory;
+                    }
+
                     process.Start();
 
                     if (!isLock)
@@ -1090,17 +1124,7 @@ namespace Laufe
                 }
                 catch
                 {
-                    RemoveKey(pic);
-
-                    foreach (XmlElement xe in xeCurrent.ChildNodes)
-                    {
-                        if (xe.GetAttribute("name") == pic.Name.Substring(3))
-                        {
-                            xeCurrent.RemoveChild(xe);
-                        }
-                    }
-
-                    BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+                    return;
                 }
             }
 
@@ -1112,9 +1136,9 @@ namespace Laufe
 
             foreach (XmlElement xe in xnRoot.ChildNodes)
             {
-                if (xe.GetAttribute("current") == "true")
+                if (xe.GetAttribute("Current") == "true")
                 {
-                    Index = Convert.ToInt32(xe.GetAttribute("index"));
+                    Index = Convert.ToInt32(xe.GetAttribute("Index"));
                     xeCurrent = xe;
                     ChanagePanel(Index);
                 }
@@ -1131,6 +1155,12 @@ namespace Laufe
             {
                 SetForegroundWindow(this.Handle);
                 this.Focus();
+            }
+
+            if(isLoad)
+            {
+                this.Visible = false;
+                isLoad = false;
             }
         }
 
@@ -1163,7 +1193,7 @@ namespace Laufe
                         break;
                     }
                 case Keys.Escape:
-                    Program.UnregisterHotKey(this.Handle, 8);
+                    Program.UnregisterHotKey(this.Handle, 128);
                     Application.Exit();
                     break;
                 case Keys.D1:
@@ -1309,20 +1339,24 @@ namespace Laufe
             {
                 PictureBox pic = (PictureBox)sender;
                 string path = "";
+                string arguments = "";
+                string workingDirectory = "";
                 string icon = "";
 
                 foreach (XmlElement xe in xeCurrent.ChildNodes)
                 {
-                    if (xe.GetAttribute("name") == pic.Name.Substring(3))
+                    if (xe.GetAttribute("Name") == pic.Name.Substring(3))
                     {
-                        path = xe.GetAttribute("path");
-                        icon = xe.GetAttribute("icon");
+                        path = xe.GetAttribute("Path");
+                        arguments = xe.GetAttribute("Arguments");
+                        workingDirectory = xe.GetAttribute("WorkingDirectory");
+                        icon = xe.GetAttribute("Icon");
                         RemoveKey(pic);
                         xeCurrent.RemoveChild(xe);
                     }
                 }
 
-                pic.DoDragDrop(new DataObject(DataFormats.FileDrop, new string[] { path, icon }), DragDropEffects.Link);
+                pic.DoDragDrop(new DataObject(DataFormats.FileDrop, new string[] { path, arguments, workingDirectory, icon }), DragDropEffects.Link);
                 BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
             }
         }
@@ -1350,18 +1384,24 @@ namespace Laufe
             PictureBox pic = (PictureBox)sender;
 
             string path = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(0).ToString();
+            string arguments = "";
+            string workingDirectory = "";
             string icon = "";
 
             if (path.Substring(path.Length - 4, 4) == ".lnk")
             {
                 IWshRuntimeLibrary.IWshShortcut shortcut = (IWshRuntimeLibrary.IWshShortcut)shell.CreateShortcut(path);
                 path = shortcut.TargetPath;
+                arguments = shortcut.Arguments;
+                workingDirectory = shortcut.WorkingDirectory;
                 icon = shortcut.IconLocation.Split(',')[0];
             }
 
             ExeFile exeFile = new ExeFile
             {
-                Path = path
+                Path = path,
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory
             };
 
             try
@@ -1379,7 +1419,9 @@ namespace Laufe
                 }
                 else
                 {
-                    exeFile.Icon = new Bitmap(new MemoryStream(HexStringToByteArray(((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(1).ToString())));
+                    exeFile.Arguments = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(1).ToString();
+                    exeFile.WorkingDirectory = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(2).ToString();
+                    exeFile.Icon = new Bitmap(new MemoryStream(HexStringToByteArray(((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(3).ToString())));
                 }
             }
             catch
@@ -1393,7 +1435,7 @@ namespace Laufe
 
                 foreach (XmlElement xe in xeCurrent.ChildNodes)
                 {
-                    if (xe.GetAttribute("name") == pic.Name.Substring(3))
+                    if (xe.GetAttribute("Name") == pic.Name.Substring(3))
                     {
                         xeCurrent.RemoveChild(xe);
                     }
@@ -1407,9 +1449,11 @@ namespace Laufe
                 byte[] byteIcon = ms.GetBuffer();
 
                 XmlElement xeKey = xdSetting.CreateElement("Key");
-                xeKey.SetAttribute("name", pic.Name.Substring(3));
-                xeKey.SetAttribute("path", exeFile.Path);
-                xeKey.SetAttribute("icon", ByteArrayToHexString(byteIcon));
+                xeKey.SetAttribute("Name", pic.Name.Substring(3));
+                xeKey.SetAttribute("Path", exeFile.Path);
+                xeKey.SetAttribute("Arguments", exeFile.Arguments);
+                xeKey.SetAttribute("WorkingDirectory", exeFile.WorkingDirectory);
+                xeKey.SetAttribute("Icon", ByteArrayToHexString(byteIcon));
                 xeCurrent.AppendChild(xeKey);
             }
 
@@ -1430,7 +1474,7 @@ namespace Laufe
 
                 foreach (XmlElement xe in xeCurrent.ChildNodes)
                 {
-                    if (xe.GetAttribute("name") == pic.Name.Substring(3))
+                    if (xe.GetAttribute("Name") == pic.Name.Substring(3))
                     {
                         xeCurrent.RemoveChild(xe);
                     }
