@@ -1540,6 +1540,7 @@
             this.ShowInTaskbar = false;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.TopMost = true;
+            this.Shown += new System.EventHandler(this.Laufe_Shown);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.Laufe_KeyDown);
             this.plnMain.ResumeLayout(false);
             this.pnl2.ResumeLayout(false);

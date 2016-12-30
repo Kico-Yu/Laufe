@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
@@ -18,12 +14,11 @@ namespace Laufe
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        [DllImportAttribute("user32.dll")]
+        [DllImport("user32.dll")]
         private static extern bool AnimateWindow(IntPtr hwnd, int dwTime, int dwFlags);
 
         delegate void SaveSetting(string path);
         bool isLock = false;
-        bool isLoad = true;
         int Index;
         XmlDocument xdSetting = new XmlDocument();
         XmlNode xnRoot;
@@ -44,7 +39,7 @@ namespace Laufe
 
             try
             {
-                xdSetting.Load("configure.xml");
+                xdSetting.Load(Application.StartupPath + @"\Laufe.xml");
             }
             catch
             {
@@ -65,7 +60,7 @@ namespace Laufe
                 }
 
                 xdSetting.AppendChild(xnRoot);
-                xdSetting.Save("configure.xml");
+                xdSetting.Save(Application.StartupPath + @"\Laufe.xml");
             }
 
             #region 事件注册
@@ -320,7 +315,6 @@ namespace Laufe
                         this.Location = new Point(((Screen.FromPoint(Cursor.Position).Bounds.Width - this.Width) / 2), ((Screen.FromPoint(Cursor.Position).Bounds.Height - this.Height) / 2));
                         AnimateWindow(this.Handle, 8, 0x00000010 + 0x00080000 + 0x00020000);
                         SetForegroundWindow(this.Handle);
-                        this.Opacity = 1;
                         this.Visible = true;
                     }
                     else
@@ -633,7 +627,7 @@ namespace Laufe
 
             Index = index;
 
-            BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+            BeginInvoke(new SaveSetting(xdSetting.Save), Application.StartupPath + @"\Laufe.xml");
         }
 
         void ChanageKeyColor(string ControlName, bool HighLight)
@@ -1082,7 +1076,7 @@ namespace Laufe
                 string arguments = ((ExeFile)pic.Tag).Arguments;
                 string workingDirectory = ((ExeFile)pic.Tag).WorkingDirectory;
 
-                if(!File.Exists(path))
+                if (!File.Exists(path))
                 {
                     RemoveKey(pic);
 
@@ -1094,7 +1088,7 @@ namespace Laufe
                         }
                     }
 
-                    BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+                    BeginInvoke(new SaveSetting(xdSetting.Save), Application.StartupPath + @"\Laufe.xml");
 
                     return;
                 }
@@ -1149,18 +1143,18 @@ namespace Laufe
             LockTimer.Start();
         }
 
+        void Laufe_Shown(object sender, EventArgs e)
+        {
+            this.Visible = false;
+            this.Opacity = 1;
+        }
+
         void LockTimer_Tick(object sender, EventArgs e)
         {
             if (isLock)
             {
                 SetForegroundWindow(this.Handle);
                 this.Focus();
-            }
-
-            if(isLoad)
-            {
-                this.Visible = false;
-                isLoad = false;
             }
         }
 
@@ -1357,7 +1351,7 @@ namespace Laufe
                 }
 
                 pic.DoDragDrop(new DataObject(DataFormats.FileDrop, new string[] { path, arguments, workingDirectory, icon }), DragDropEffects.Link);
-                BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+                BeginInvoke(new SaveSetting(xdSetting.Save), Application.StartupPath + @"\Laufe.xml");
             }
         }
 
@@ -1457,7 +1451,7 @@ namespace Laufe
                 xeCurrent.AppendChild(xeKey);
             }
 
-            BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+            BeginInvoke(new SaveSetting(xdSetting.Save), Application.StartupPath + @"\Laufe.xml");
         }
 
         void pictureBox_MouseClick(object sender, MouseEventArgs e)
@@ -1480,7 +1474,7 @@ namespace Laufe
                     }
                 }
 
-                BeginInvoke(new SaveSetting(xdSetting.Save), "configure.xml");
+                BeginInvoke(new SaveSetting(xdSetting.Save), Application.StartupPath + @"\Laufe.xml");
             }
         }
 
